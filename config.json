@@ -1,0 +1,23 @@
+{
+  "gold": "GC=F",
+  "dxy": "DX-Y.NYB",
+  "us10y": "^TNX",
+  "interval": "15m",
+  "htf_fast": 50,
+  "htf_slow": 200,
+  "inter_len": 50,
+  "use_yield": true,
+  "ema_len": 21,
+  "rsi_len": 14,
+  "adx_len": 14,
+  "adx_min": 20,
+  "use_session": true,
+  "session_start_utc": 8,
+  "session_end_utc": 18,
+  "news_block": false,
+  "news_windows_utc": [],
+  "atr_len": 14,
+  "sl_mult": 1.5,
+  "rr": 2.0,
+  "min_score": 4
+}
