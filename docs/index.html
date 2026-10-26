@@ -1,0 +1,70 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gold Confirmation Dashboard</title>
+<style>
+:root{--bg:#f6f4ef;--panel:#fffdf8;--ink:#1d1b16;--mut:#7a7466;--line:#ddd6c6;--up:#1f7a4d;--dn:#b23a30;--flat:#8b8576;--gold:#b8860b;color-scheme:light}
+@media(prefers-color-scheme:dark){:root{--bg:#14120e;--panel:#1c1a14;--ink:#f1ecdf;--mut:#9a937f;--line:#352f22;--up:#4fc08a;--dn:#ef7a6e;--flat:#8b8576;--gold:#e0b341;color-scheme:dark}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 Georgia,'Times New Roman',serif;padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+main{max-width:980px;margin:0 auto;padding:20px 16px 40px}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline;border-bottom:2px solid var(--gold);padding-bottom:10px}
+h1{font-size:24px;margin:0;font-weight:700}.mut{color:var(--mut);font-size:13px}
+.hero{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}
+@media(max-width:640px){.hero{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);padding:16px}
+.final{font-size:56px;font-weight:700;line-height:1}.BUY{color:var(--up)}.SELL{color:var(--dn)}.WAIT{color:var(--flat)}
+.price{font-size:22px;margin-top:6px}
+table{width:100%;border-collapse:collapse}td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left}
+th{font-weight:400;color:var(--mut);font-size:13px}td:last-child{text-align:right;font-weight:700}
+.s1{color:var(--up)}.s-1{color:var(--dn)}.s0{color:var(--flat)}
+canvas{width:100%;height:300px;display:block}
+h2{font-size:17px;margin:22px 0 8px}
+#err{display:none;background:var(--panel);border:1px solid var(--dn);padding:14px;margin-top:16px}
+</style></head><body><main>
+<header><h1>Gold Confirmation</h1><span class="mut" id="meta">loading…</span></header>
+<div id="err">No data yet. In GitHub: Actions → gold-engine → Run workflow, then refresh this page in a minute.</div>
+<section class="hero">
+ <div class="box"><div class="mut">Decision</div><div class="final WAIT" id="final">—</div><div class="price" id="price"></div><div class="mut" id="trade"></div></div>
+ <div class="box"><table id="fac"></table></div>
+</section>
+<div class="box"><canvas id="cv"></canvas></div>
+<h2>Recent signals</h2>
+<div class="box"><table id="hist"></table></div>
+<p class="mut">Futures data via Yahoo Finance (delayed, GC=F trades at a premium to spot XAUUSD). Not financial advice.</p>
+</main>
+<script>
+const $=id=>document.getElementById(id),T={1:"BULL","-1":"BEAR",0:"NEUTRAL"};
+const fmt=t=>new Date(t).toLocaleString([], {day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+async function load(){
+ try{
+  const d=await (await fetch("data.json?"+Date.now())).json();
+  $("err").style.display="none";
+  $("meta").textContent=`${d.symbol} · ${d.interval} · candle ${fmt(d.bar_time)} · updated ${fmt(d.updated)}`;
+  $("final").textContent=d.final;$("final").className="final "+d.final;
+  $("price").textContent=d.price;
+  $("trade").textContent=d.trade?`SL ${d.trade.sl}  |  TP ${d.trade.tp}`:`Buy ${d.buy_score}/${d.max_pts}, Sell ${d.sell_score}/${d.max_pts} (need ${d.need}). Waiting for a setup.`;
+  const f=d.factors,rows=[["HTF trend",f.htf],["DXY",f.dxy],["US10Y",f.us10y],["Price action",f.price_action],["Momentum",f.momentum]];
+  $("fac").innerHTML="<tr><th>Factor</th><th>Reading</th><th></th></tr>"+rows.map(([n,x])=>`<tr><td>${n}</td><td class="mut">${x.detail}</td><td class="s${x.sig}">${T[x.sig]}</td></tr>`).join("")
+   +`<tr><td>Session</td><td></td><td class="${d.session_ok?'s1':'s-1'}">${d.session_ok?"OK":"OUT"}</td></tr><tr><td>News</td><td></td><td class="${d.news_ok?'s1':'s-1'}">${d.news_ok?"CLEAR":"BLOCKED"}</td></tr>`;
+  $("hist").innerHTML="<tr><th>Time</th><th>Entry</th><th>SL</th><th>TP</th><th></th></tr>"+d.history.slice().reverse().map(h=>`<tr><td>${fmt(h.t)}</td><td>${h.entry}</td><td>${h.sl}</td><td>${h.tp}</td><td class="${h.side}">${h.side}</td></tr>`).join("");
+  draw(d);
+ }catch(e){$("err").style.display="block"}
+}
+function draw(d){
+ const cv=$("cv"),r=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*r;cv.height=H*r;
+ const x=cv.getContext("2d");x.scale(r,r);x.clearRect(0,0,W,H);
+ const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
+ const c=d.candles,hi=Math.max(...c.map(k=>k[2])),lo=Math.min(...c.map(k=>k[3])),pad=(hi-lo)*.05,
+ Y=v=>H-24-(v-lo+pad)/(hi-lo+2*pad)*(H-34),w=(W-60)/c.length,X=i=>6+i*w+w/2;
+ x.font="11px Georgia";x.fillStyle=col("--mut");
+ for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4,y=Y(v);x.strokeStyle=col("--line");x.beginPath();x.moveTo(0,y);x.lineTo(W-50,y);x.stroke();x.fillText(v.toFixed(1),W-46,y+4)}
+ c.forEach((k,i)=>{const up=k[4]>=k[1];x.strokeStyle=x.fillStyle=up?col("--up"):col("--dn");
+  x.beginPath();x.moveTo(X(i),Y(k[2]));x.lineTo(X(i),Y(k[3]));x.stroke();
+  const t=Math.min(Y(k[1]),Y(k[4])),h=Math.max(1,Math.abs(Y(k[1])-Y(k[4])));x.fillRect(X(i)-w*.35,t,w*.7,h)});
+ x.strokeStyle=col("--gold");x.lineWidth=1.5;x.beginPath();c.forEach((k,i)=>i?x.lineTo(X(i),Y(k[5])):x.moveTo(X(i),Y(k[5])));x.stroke();x.lineWidth=1;
+ d.history.forEach(h=>{const i=c.findIndex(k=>k[0]===h.t);if(i<0)return;const b=h.side==="BUY";
+  x.fillStyle=b?col("--up"):col("--dn");const y=b?Y(c[i][3])+10:Y(c[i][2])-10;
+  x.beginPath();x.moveTo(X(i),y+(b?-7:7));x.lineTo(X(i)-5,y+(b?5:-5));x.lineTo(X(i)+5,y+(b?5:-5));x.fill()});
+}
+load();setInterval(load,60000);addEventListener("resize",load);
+</script></body></html>
