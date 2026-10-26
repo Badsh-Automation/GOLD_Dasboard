@@ -1,0 +1,17 @@
+name: keepalive
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # har Monday
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u > docs/heartbeat.txt
+          git config user.name "gold-bot"; git config user.email "bot@users.noreply.github.com"
+          git add docs/heartbeat.txt
+          git commit -m "keepalive" && git push
