@@ -1,0 +1,25 @@
+name: gold-engine
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # every 15 min, 24x7
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: gold-engine
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python gold_engine.py
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      - name: Commit data
+        run: |
+          git config user.name "gold-bot"; git config user.email "bot@users.noreply.github.com"
+          git add docs/data.json
+          git diff --staged --quiet || (git commit -m "data update" && git push)
