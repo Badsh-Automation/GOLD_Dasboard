@@ -1,25 +1,41 @@
 name: gold-engine
 on:
   schedule:
-    - cron: "*/15 * * * *"   # every 15 min, 24x7
+    - cron: "*/30 * * * *"   # backup restart only
   workflow_dispatch:
 permissions:
   contents: write
-concurrency: gold-engine
+  actions: write
+concurrency:
+  group: gold-engine
+  cancel-in-progress: false
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.11", cache: pip }
       - run: pip install -r requirements.txt
-      - run: python gold_engine.py
+      - name: Run engine every 15 min
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      - name: Commit data
         run: |
           git config user.name "gold-bot"; git config user.email "bot@users.noreply.github.com"
-          git add docs/data.json
-          git diff --staged --quiet || (git commit -m "data update" && git push)
+          END=$(( $(date +%s) + 5*3600 + 40*60 ))
+          while true; do
+            python gold_engine.py || true
+            git add docs/data.json
+            git diff --staged --quiet || (git commit -q -m "data update" && git pull --rebase -q && git push -q) || true
+            NOW=$(date +%s)
+            NEXT=$(( (NOW/900 + 1) * 900 ))
+            [ $NEXT -ge $END ] && break
+            sleep $(( NEXT - NOW ))
+          done
+      - name: Start next run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run run.yml
